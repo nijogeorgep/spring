@@ -3,11 +3,13 @@ package org.abhijitsarkar.spring.pinterest.web
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.cache.Cache
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
-import org.springframework.web.reactive.function.server.HandlerFilterFunction
-import org.springframework.web.reactive.function.server.HandlerFunction
-import org.springframework.web.reactive.function.server.ServerRequest
-import org.springframework.web.reactive.function.server.ServerResponse
+import org.springframework.util.StringUtils
+import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.WebFilter
+import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 import java.net.URI
 
@@ -15,18 +17,54 @@ import java.net.URI
  * @author Abhijit Sarkar
  */
 @Component
-class OAuthFilter(val cache: Cache) : HandlerFilterFunction<ServerResponse, ServerResponse> {
+class OAuthFilter(val cache: Cache) : WebFilter {
     val logger: Logger = LoggerFactory.getLogger(OAuthFilter::class.java)
 
-    override fun filter(request: ServerRequest, next: HandlerFunction<ServerResponse>?): Mono<ServerResponse>? {
-        if (shouldFilter(request)) {
-            return next?.handle(request)
-        } else {
-            logger.info("Unauthorized access to: {}, redirecting to OAuth endpoint.", request.path())
-            return ServerResponse.temporaryRedirect(URI(OAUTH)).build()
+    override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
+        return exchange.session.flatMap { session ->
+            val path = exchange.request.path.pathWithinApplication().value()
+
+            logger.debug("Request URI: {}.", exchange.request.uri)
+
+            var sessionId = exchange.request.queryParams["state"]?.firstOrNull()
+
+            if (StringUtils.isEmpty(sessionId)) {
+                if (!session.isStarted) {
+                    logger.debug("Started session: {}.", session.id)
+                    session.start()
+                }
+
+                sessionId = session.id
+            } else {
+                logger.debug("OAuth redirect from Pinterest.")
+            }
+
+            logger.debug("Session id: {}.", sessionId)
+
+            val modifiedExchange = exchange.mutate().request(
+                    exchange.request.mutate().header(SESSION_ID, sessionId).build())
+                    .build()
+                    .also { it.response.beforeCommit { session.save() } }
+
+            if (isNotPreAuthorized(path, sessionId)) {
+                modifiedExchange.response.apply {
+                    modifiedExchange.request.uri.resolve(URI(OAUTH))
+                            .toString()
+                            .replace("http", "https")
+                            .also {
+                                logger.info("Unauthorized access to: {}, redirecting to: {}.",
+                                        modifiedExchange.request.uri, it)
+                                headers[HttpHeaders.LOCATION] = it
+                            }
+                    statusCode = HttpStatus.TEMPORARY_REDIRECT
+                }
+                        .setComplete()
+            }
+            chain.filter(modifiedExchange)
         }
     }
 
-    private fun shouldFilter(request: ServerRequest) =
-            (request.path().startsWith(PINTEREST) && cache.get(ACCESS_TOKEN_CACHE_KEY, String::class.java) != null)
+    private fun isNotPreAuthorized(path: String, sessionId: String?) =
+            path.startsWith(PINTEREST)
+                    && cache.get(sessionId, String::class.java) == null
 }

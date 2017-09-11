@@ -17,5 +17,4 @@ class PinRoutes(val pinHandler: PinHandler, val oAuthFilter: OAuthFilter) {
             GET(PIN, pinHandler::indexPage)
         }
     }
-            .filter(oAuthFilter)
 }
