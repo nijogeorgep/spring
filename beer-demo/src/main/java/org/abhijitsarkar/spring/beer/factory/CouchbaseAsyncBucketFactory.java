@@ -1,16 +1,20 @@
 package org.abhijitsarkar.spring.beer.factory;
 
 import com.couchbase.client.java.AsyncBucket;
+import com.netflix.hystrix.exception.HystrixRuntimeException;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.abhijitsarkar.spring.beer.CouchbaseProperties;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
+import rx.Observable;
 import rx.Single;
+import rx.schedulers.Schedulers;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.netflix.hystrix.exception.HystrixRuntimeException.FailureType.SHORTCIRCUIT;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -38,14 +42,19 @@ public interface CouchbaseAsyncBucketFactory {
 
         public Single<AsyncBucket> getAsyncBucketInstance() {
             if (asyncBucket.get() == null) {
-                log.info("1...");
+                afterPropertiesSet();
 
-                return new AsyncBucketHystrixObservableCommand(couchbaseAsyncClusterFactory, couchbaseProperties)
-                        .observe()
-                        .toSingle();
+                HystrixRuntimeException ex = new HystrixRuntimeException(
+                        SHORTCIRCUIT,
+                        AsyncBucketHystrixObservableCommand.class,
+                        String.format("Bucket: %s not open.",
+                                couchbaseProperties.getBucket().getName()),
+                        new RuntimeException("Hystrix circuit short-circuited and is OPEN"),
+                        null);
+
+                return Single.error(ex);
             }
 
-            log.info("2...");
             return asyncBucket.get();
         }
 
@@ -76,8 +85,10 @@ public interface CouchbaseAsyncBucketFactory {
         public void afterPropertiesSet() {
             String bucketName = couchbaseProperties.getBucket().getName();
 
-            new AsyncBucketHystrixObservableCommand(couchbaseAsyncClusterFactory, couchbaseProperties)
-                    .observe()
+            Observable.just(0L)
+                    .observeOn(Schedulers.io())
+                    .flatMap(i -> new AsyncBucketHystrixObservableCommand(couchbaseAsyncClusterFactory, couchbaseProperties)
+                            .observe())
                     .subscribe(bucket -> {
                                 boolean initialized = asyncBucket.compareAndSet(null, Single.just(bucket).cache());
                                 log.info("Bucket: {} {} opened.", couchbaseProperties.getBucket().getName(),

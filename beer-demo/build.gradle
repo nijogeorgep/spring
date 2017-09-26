@@ -4,8 +4,8 @@ buildscript {
         lombokVersion = "1.16.16"
         slf4jVersion = "1.7.25"
         logbackVersion = "1.2.3"
-        couchbaseClientVersion = "2.4.7"
-        couchbaseCoreIOVersion = "1.4.7"
+        couchbaseClientVersion = "2.5.0"
+        couchbaseCoreIOVersion = "1.5.0"
         rxjavaVersion = "1.3.2"
         hystrixVersion = "1.5.12"
     }

@@ -36,15 +36,16 @@ public class AsyncBucketHystrixObservableCommand extends HystrixObservableComman
     final CouchbaseAsyncClusterFactory couchbaseAsyncClusterFactory;
     final CouchbaseProperties couchbaseProperties;
 
+    Scheduler scheduler = Schedulers.io();
+
     // indirections for testing
     BiFunction<AsyncBucket, N1qlQuery, Observable<AsyncN1qlQueryRow>> queryExecutor =
             CouchbaseQueryUtil::executeN1qlQuery;
 
-    Scheduler scheduler = Schedulers.io();
-
     public AsyncBucketHystrixObservableCommand(
             CouchbaseAsyncClusterFactory couchbaseAsyncClusterFactory,
-            CouchbaseProperties couchbaseProperties) {
+            CouchbaseProperties couchbaseProperties
+    ) {
         super(commandSetter(couchbaseProperties.getBucket()));
 
         this.couchbaseAsyncClusterFactory = couchbaseAsyncClusterFactory;
@@ -56,8 +57,8 @@ public class AsyncBucketHystrixObservableCommand extends HystrixObservableComman
                 .andCommandKey(HystrixCommandKey.Factory.asKey(bucket.getName() + "-cmd"))
                 .andCommandPropertiesDefaults(
                         HystrixCommandProperties.Setter()
-//                                .withCircuitBreakerRequestVolumeThreshold(1)
-//                                .withCircuitBreakerErrorThresholdPercentage(0)
+                                .withCircuitBreakerRequestVolumeThreshold(1)
+                                .withCircuitBreakerErrorThresholdPercentage(0)
                                 .withExecutionIsolationStrategy(SEMAPHORE)
                                 .withExecutionIsolationSemaphoreMaxConcurrentRequests(1)
                                 .withFallbackEnabled(false)
@@ -127,6 +128,7 @@ public class AsyncBucketHystrixObservableCommand extends HystrixObservableComman
         SimpleN1qlQuery query = N1qlQuery.simple(statement);
 
         return Observable.just(0L)
+                // separate index creation so as not to timeout on bucket opening
                 .observeOn(scheduler)
                 .doOnNext(i -> log.info("Creating primary index."))
                 .flatMap(i ->
@@ -140,10 +142,4 @@ public class AsyncBucketHystrixObservableCommand extends HystrixObservableComman
         return cluster.openBucket(bucket.getName(), bucket.getPassword())
                 .timeout(bucket.getBucketOpenTimeoutMillis(), MILLISECONDS);
     }
-
-//    @Override
-//    protected Observable<AsyncBucket> resumeWithFallback() {
-//        log.warn("Bucket {} fallback.", couchbaseProperties.getBucket().getName());
-//        return Observable.empty();
-//    }
 }
