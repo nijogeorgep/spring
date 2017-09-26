@@ -1,12 +1,12 @@
-package org.abhijitsarkar.spring.web;
+package org.abhijitsarkar.spring.beer.web;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.abhijitsarkar.spring.domain.Beer;
-import org.abhijitsarkar.spring.domain.Brewery;
-import org.abhijitsarkar.spring.repository.CouchbaseBeerRepository;
-import org.abhijitsarkar.spring.repository.CouchbaseBreweryRepository;
-import org.abhijitsarkar.spring.repository.CouchbaseRepository;
+import org.abhijitsarkar.spring.beer.domain.Beer;
+import org.abhijitsarkar.spring.beer.domain.Brewery;
+import org.abhijitsarkar.spring.beer.repository.CouchbaseBeerRepository;
+import org.abhijitsarkar.spring.beer.repository.CouchbaseBreweryRepository;
+import org.abhijitsarkar.spring.beer.repository.CouchbaseRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,7 +51,7 @@ public class BeerDemoController {
 
     @GetMapping(path = "/breweries/{id}", produces = APPLICATION_JSON_VALUE)
     public ResponseEntity<Brewery> brewery(@PathVariable("id") String id) {
-        return breweryRepository.findAll(asList(id), "type", "brewery")
+        return breweryRepository.findAllByIds(asList(id), "type", "brewery")
                 .first()
                 .map(ResponseEntity::ok)
                 .onErrorReturn(t -> ResponseEntity.status(INTERNAL_SERVER_ERROR).build())

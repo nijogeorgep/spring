@@ -1,4 +1,4 @@
-package org.abhijitsarkar.spring;
+package org.abhijitsarkar.spring.beer;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -17,7 +17,7 @@ public class CouchbaseProperties {
     private String adminUsername;
     private String adminPassword;
     private BucketProperties bucket;
-    private long clusterConnectTimeoutMillis = 5000;
+    private long clusterConnectTimeoutMillis = 10000;
     private long clusterDisconnectTimeoutMillis = clusterConnectTimeoutMillis;
 
     @Data
@@ -25,9 +25,10 @@ public class CouchbaseProperties {
         int defaultQuotaMB = 100;
         boolean enableFlush = true;
         boolean createIfMissing = true;
+        private boolean indexReplicas;
         private String name;
         private String password = "";
-        private long bucketOpenTimeoutMillis = 5000;
+        private long bucketOpenTimeoutMillis = 10000;
         private long bucketCloseTimeoutMillis = bucketOpenTimeoutMillis;
 
     }

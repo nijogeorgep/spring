@@ -1,4 +1,4 @@
-package org.abhijitsarkar.spring;
+package org.abhijitsarkar.spring.beer;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.data.couchbase.CouchbaseRepositoriesAutoConfiguration;

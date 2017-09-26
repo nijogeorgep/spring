@@ -1,15 +1,20 @@
-package org.abhijitsarkar.spring;
+package org.abhijitsarkar.spring.beer;
 
+import com.couchbase.client.core.metrics.DefaultLatencyMetricsCollectorConfig;
 import com.couchbase.client.java.document.RawJsonDocument;
+import com.couchbase.client.java.env.CouchbaseEnvironment;
+import com.couchbase.client.java.env.DefaultCouchbaseEnvironment;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.abhijitsarkar.spring.domain.Beer;
-import org.abhijitsarkar.spring.domain.Brewery;
-import org.abhijitsarkar.spring.factory.CouchbaseAsyncBucketFactory;
-import org.abhijitsarkar.spring.factory.CouchbaseAsyncClusterFactory;
+import org.abhijitsarkar.spring.beer.domain.Beer;
+import org.abhijitsarkar.spring.beer.domain.Brewery;
+import org.abhijitsarkar.spring.beer.factory.CouchbaseAsyncBucketFactory;
+import org.abhijitsarkar.spring.beer.factory.CouchbaseAsyncClusterFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -39,69 +44,30 @@ import static java.util.stream.Collectors.toList;
 @EnableConfigurationProperties(CouchbaseProperties.class)
 public class CouchbaseConfiguration {
     @Autowired
+    @Setter(AccessLevel.PACKAGE)
     private CouchbaseProperties couchbaseProperties;
 
-    @Bean(destroyMethod = "disconnect")
-    CouchbaseAsyncClusterFactory couchbaseAsyncClusterFactory() {
-        return CouchbaseAsyncClusterFactory.builder()
-                .couchbaseProperties(couchbaseProperties)
+    @Bean
+    CouchbaseEnvironment couchbaseEnvironment() {
+        DefaultLatencyMetricsCollectorConfig.Builder builder = DefaultLatencyMetricsCollectorConfig.builder()
+                .emitFrequency(5)
+                .emitFrequencyUnit(TimeUnit.SECONDS)
+                .targetUnit(TimeUnit.MILLISECONDS);
+
+        return DefaultCouchbaseEnvironment.builder()
+                .networkLatencyMetricsCollectorConfig(builder.build())
                 .build();
     }
 
-    @Bean(destroyMethod = "close")
-    CouchbaseAsyncBucketFactory couchbaseAsyncBucketFactory() {
-        return new CouchbaseAsyncBucketFactory(couchbaseAsyncClusterFactory(), couchbaseProperties);
+    @Bean
+    CouchbaseAsyncClusterFactory couchbaseAsyncClusterFactory() {
+        return CouchbaseAsyncClusterFactory.newInstance(couchbaseEnvironment(), couchbaseProperties);
     }
 
-//    @Bean
-//    @Lazy
-//    CouchbaseClusterFactoryBean couchbaseClusterFactoryBean() {
-//        return new CouchbaseClusterFactoryBean(couchbaseProperties, couchbaseEnvironmentFactoryBean().getBean());
-//    }
-//
-//    @Bean
-//    @Lazy
-//    CouchbaseBucketFactoryBean couchbaseBucketFactoryBean() {
-//        return new CouchbaseBucketFactoryBean(couchbaseClusterFactoryBean(), couchbaseProperties);
-//    }
-//
-//    @Bean
-//    @Lazy
-//    CouchbaseEnvironmentFactoryBean couchbaseEnvironmentFactoryBean() {
-//        return new CouchbaseEnvironmentFactoryBean(couchbaseProperties);
-//    }
-//
-//    @Bean
-//    @Lazy
-//    CouchbaseTemplateFactoryBean couchbaseTemplateFactoryBean() {
-//        return new CouchbaseTemplateFactoryBean(
-//                couchbaseClusterFactoryBean(),
-//                couchbaseBucketFactoryBean(),
-//                couchbaseProperties
-//        );
-//    }
-//
-//    @Bean
-//    @Lazy
-//    RepositoryOperationsMappingFactoryBean repositoryOperationsMappingFactoryBean() {
-//        return new RepositoryOperationsMappingFactoryBean(couchbaseTemplateFactoryBean(), couchbaseProperties);
-//    }
-//
-//    @Bean
-//    @Lazy
-//    IndexManagerFactoryBean indexManagerFactoryBean() {
-//        return new IndexManagerFactoryBean(couchbaseProperties);
-//    }
-//
-//    @Bean
-//    @Lazy
-//    CouchbaseRepositoryFactory couchbaseRepositoryFactory() {
-//        return new CouchbaseRepositoryFactory(
-//                repositoryOperationsMappingFactoryBean(),
-//                indexManagerFactoryBean(),
-//                couchbaseTemplateFactoryBean()
-//        );
-//    }
+    @Bean
+    CouchbaseAsyncBucketFactory couchbaseAsyncBucketFactory() {
+        return CouchbaseAsyncBucketFactory.newInstance(couchbaseAsyncClusterFactory(), couchbaseProperties);
+    }
 
     @Bean
     DbInitializer dbInitializer(CouchbaseAsyncBucketFactory couchbaseAsyncBucketFactory) {
@@ -148,7 +114,7 @@ public class CouchbaseConfiguration {
         }
 
         private Observable<RawJsonDocument> save(List<RawJsonDocument> list) {
-            return couchbaseAsyncBucketFactory.getInstance()
+            return couchbaseAsyncBucketFactory.getAsyncBucketInstance()
                     .flatMapObservable(bucket -> list
                             .stream()
                             .map(bucket::upsert)
